@@ -19,7 +19,8 @@ async def course(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⏳ Extracting course, please wait...")
 
     try:
-        result = extract_course(batch_id)
+        result = extract_course_to_file(
+            batch_id)
         await update.message.reply_text(result[:4000])
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
