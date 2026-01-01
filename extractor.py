@@ -41,9 +41,9 @@ def extract_course_to_file(ci):
     session = requests.Session()
     filename = f"course_{ci}.txt"
     
-    # --- YAHAN APNI DETAILS DALEIN ---
-    email = "YOUR_MOBILE" 
-    password = "YOUR_PASSWORD"
+    # --- APNA LOGIN YAHA DALEIN ---
+    email = "YOUR_MOBILE_HERE" 
+    password = "YOUR_PASSWORD_HERE"
 
     try:
         r1 = session.get('https://online.utkarsh.com/')
@@ -51,13 +51,17 @@ def extract_course_to_file(ci):
         l_res = session.post('https://online.utkarsh.com/web/Auth/login', data={'csrf_name': csrf, 'mobile': email, 'password': password, 'submit': 'LogIn'}).json()
         
         dec_login = decrypt_stream(l_res.get("response"))
-        if not dec_login: return "Error: Login Failed"
+        if not dec_login: return "Error: Login Response Decrypt Nahi Hua"
         dr1 = json.loads(dec_login)
         
-        jwt = dr1.get("data", {}).get("jwt")
+        # User details extraction with safety
+        u_data = dr1.get("data", {})
+        jwt = u_data.get("jwt") if isinstance(u_data, dict) else None
         token = dr1.get("token")
-        uid = str(dr1.get("data", {}).get("id"))
+        uid = str(u_data.get("id")) if isinstance(u_data, dict) else "0"
         
+        if not jwt: return "Error: Login Fail (JWT missing). Email/Pass check karein."
+
         h = {'token': token, 'jwt': jwt, 'User-Agent': 'Mozilla/5.0'}
         ukey = "".join(key_chars[int(i)] for i in (uid + "1524567456436545")[:16]).encode()
         uiv = "".join(iv_chars[int(i)] for i in (uid + "1524567456436545")[:16]).encode()
@@ -65,57 +69,72 @@ def extract_course_to_file(ci):
         with open(filename, "w", encoding="utf-8") as f:
             d3 = {"course_id": ci, "revert_api": "1#0#0#1", "parent_id": 0, "tile_id": "15330", "layer": 1, "type": "course_combo"}
             r4 = session.post('https://online.utkarsh.com/web/Course/tiles_data', headers=h, data={'tile_input': encrypt_stream(json.dumps(d3)), 'csrf_name': csrf}).json()
-            dr3 = json.loads(decrypt_stream(r4.get("response")))
             
-            # FIX: Check if data is list or dict
-            l1_data = dr3.get("data", [])
-            items = l1_data.get("list", []) if isinstance(l1_data, dict) else l1_data
+            dr3_raw = decrypt_stream(r4.get("response"))
+            if not dr3_raw: return "Error: Course Data Decrypt Nahi Hua"
+            dr3 = json.loads(dr3_raw)
+            
+            # --- MAIN FIX: LIST vs DICT CHECK ---
+            raw_data_field = dr3.get("data", [])
+            if isinstance(raw_data_field, dict):
+                items = raw_data_field.get("list", [])
+            else:
+                items = raw_data_field # Agar data khud hi ek list hai
+
             if not isinstance(items, list): items = []
 
             for item in items:
                 if not isinstance(item, dict): continue
                 fi = item.get("id")
-                f.write(f"\n--- {item.get('title')} ---\n")
+                f.write(f"\n--- SECTION: {item.get('title')} ---\n")
                 
-                # Layer 2
+                # Layer 2 (Subjects)
                 d5 = {"course_id": fi, "layer": 1, "page": 1, "parent_id": fi, "revert_api": "1#1#0#1", "tile_id": "0", "type": "content"}
                 r5 = session.post('https://online.utkarsh.com/web/Course/tiles_data', headers=h, data={'tile_input': encrypt_stream(json.dumps(d5)), 'csrf_name': csrf}).json()
-                dr4 = json.loads(decrypt_stream(r5.get("response")))
                 
-                l2_res = dr4.get("data", {})
-                sub_list = l2_res.get("list", []) if isinstance(l2_res, dict) else []
+                dr4_raw = decrypt_stream(r5.get("response"))
+                if not dr4_raw: continue
+                dr4 = json.loads(dr4_raw)
+                
+                l2_data = dr4.get("data", {})
+                sub_list = l2_data.get("list", []) if isinstance(l2_data, dict) else []
 
                 for sub in sub_list:
                     if not isinstance(sub, dict): continue
                     sfi = sub.get("id")
                     d7 = {"course_id": fi, "parent_id": fi, "layer": 2, "page": 1, "subject_id": sfi, "topic_id": sfi, "type": "content"}
                     r6 = session.post('https://online.utkarsh.com/web/Course/get_layer_two_data', headers=h, data={'layer_two_input_data': base64.b64encode(json.dumps(d7).encode()).decode(), 'csrf_name': csrf}).json()
-                    dr5 = json.loads(decrypt_stream(r6.get("response")))
                     
-                    l3_res = dr5.get("data", {})
-                    top_list = l3_res.get("list", []) if isinstance(l3_res, dict) else []
+                    dr5_raw = decrypt_stream(r6.get("response"))
+                    if not dr5_raw: continue
+                    dr5 = json.loads(dr5_raw)
+                    l3_data = dr5.get("data", {})
+                    top_list = l3_data.get("list", []) if isinstance(l3_data, dict) else []
 
                     for top in top_list:
                         if not isinstance(top, dict): continue
                         ti = top.get("id")
                         d9 = {"course_id": fi, "parent_id": fi, "layer": 3, "page": 1, "subject_id": sfi, "topic_id": ti, "type": "content"}
                         r7 = session.post('https://online.utkarsh.com/web/Course/get_layer_two_data', headers=h, data={'layer_two_input_data': base64.b64encode(json.dumps(d9).encode()).decode(), 'csrf_name': csrf}).json()
-                        dr6 = json.loads(decrypt_stream(r7.get("response")))
                         
-                        l4_res = dr6.get("data", {})
-                        vids = l4_res.get("list", []) if isinstance(l4_res, dict) else []
+                        dr6_raw = decrypt_stream(r7.get("response"))
+                        if not dr6_raw: continue
+                        dr6 = json.loads(dr6_raw)
+                        l4_data = dr6.get("data", {})
+                        vids = l4_data.get("list", []) if isinstance(l4_data, dict) else []
 
                         for v in vids:
                             if not isinstance(v, dict): continue
-                            jti = v.get("payload", {}).get("tile_id") if isinstance(v.get("payload"), dict) else None
+                            payload = v.get("payload", {})
+                            jti = payload.get("tile_id") if isinstance(payload, dict) else None
                             if jti:
                                 try:
                                     j5 = post_request("/meta_distributer/on_request_meta_source", {"course_id": fi, "tile_id": jti, "type": "video", "userid": uid}, ukey, uiv)
-                                    v_data = j5.get("data", {})
-                                    if isinstance(v_data, dict):
-                                        url = v_data.get("link") or (v_data.get("bitrate_urls", [{}])[0].get("url") if v_data.get("bitrate_urls") else None)
-                                        if url: f.write(f"{v.get('title')}: {url.split('?Expires=')[0]}\n")
+                                    v_meta = j5.get("data", {})
+                                    if isinstance(v_meta, dict):
+                                        v_url = v_meta.get("link") or (v_meta.get("bitrate_urls", [{}])[0].get("url") if v_meta.get("bitrate_urls") else None)
+                                        if v_url: f.write(f"{v.get('title')}: {v_url.split('?Expires=')[0]}\n")
                                 except: continue
         return filename
-    except Exception as e: return f"Error: {str(e)}"
-        
+    except Exception as e: return f"Error Logic Me: {str(e)}"
+    
