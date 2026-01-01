@@ -2,7 +2,8 @@
 import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from extractor import extract_course
+from extractor import extract_course_to_file
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
